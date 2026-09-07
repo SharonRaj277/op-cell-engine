@@ -25,13 +25,14 @@ Run:  python3 prototype/demo.py
 from __future__ import annotations
 
 import math
-import random
 import statistics
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from opos import synthetic as synth
+from opos.calibration import report, run_range
 from opos.epistemics import Epistemic, Flags, Gate, Operator, Typed, combine
 from opos.fields import FeatureField, slope_vs_phi
 from opos.invariant import hunt
@@ -39,70 +40,18 @@ from opos.ledger import Ledger, Posting
 from opos.provenance import CycleError, EvidenceLog, ProvenanceDAG
 from opos.tribunal import association_by_stratum, run_invariant_tribunal
 
-RNG = random.Random(20260903)
-PHI = [0.05 + 0.9 * i / 19 for i in range(20)]
 N_SPECIMENS = 80
-SIGMA_LOG = 0.05
+PHI = synth.PHI
 
 
 def rule(title: str) -> None:
     print(f"\n{'=' * 78}\n{title}\n{'=' * 78}")
 
 
-# ---------------------------------------------------------------------------
-# Synthetic specimen generator
-# ---------------------------------------------------------------------------
-
 def generate() -> tuple[dict, dict, dict]:
-    fields_by_specimen, labels, strata = {}, {}, {}
-    for i in range(N_SPECIMENS):
-        spec = f"S{i:03d}"
-        condition = "dysplasia" if RNG.random() < 0.5 else "normal"
-        # the confound: dysplastic cases were preferentially run on the new scanner
-        p_b = 0.8 if condition == "dysplasia" else 0.2
-        scanner = "B" if RNG.random() < p_b else "A"
-        stain_lot = RNG.choice(["L1", "L2"])
-        stratum = {"scanner": scanner, "stain_lot": stain_lot, "lab": "central"}
-
-        k = RNG.uniform(1.2, 3.0)          # shared differentiation rate  <- the real signal
-        a = RNG.uniform(0.5, 1.5)          # independent amplitudes
-        b = RNG.uniform(0.8, 2.4)
-        d = RNG.uniform(6.0, 11.0)
-        o = RNG.uniform(0.30, 0.45)
-
-        chrom_gain = 1.15 if scanner == "B" else 1.0          # constant level, benign
-        # DECLARED nuisance: stain penetration bulges mid-depth. Curvature in phi, so
-        # it is not collinear with the linear differentiation-rate term.
-        lot_curv = 0.35 if stain_lot == "L2" else 0.0
-        # UNDECLARED nuisance: the new scanner steepens the orientation gradient.
-        orient_slope = 0.10 + (0.25 if scanner == "B" else 0.0)
-
-        nc, chrom, area, nbr, orient = [], [], [], [], []
-        for phi in PHI:
-            shared_err = RNG.gauss(0.0, SIGMA_LOG)            # same mask -> same error
-            lot_term = lot_curv * (phi - 0.5) ** 2
-            nc_v = a * math.exp(-k * phi) * math.exp(shared_err + lot_term)
-            area_v = 1.9 * a * math.exp(-k * phi) * math.exp(
-                shared_err + lot_term + RNG.gauss(0, 0.01))
-            chrom_v = b * chrom_gain * math.exp(-k * phi) * math.exp(RNG.gauss(0, SIGMA_LOG))
-            nbr_v = d * (1 + 0.6 * phi) * math.exp(RNG.gauss(0, SIGMA_LOG))
-            orient_v = (o + orient_slope * phi) * math.exp(RNG.gauss(0, 0.03))
-            nc.append(nc_v); chrom.append(chrom_v); area.append(area_v)
-            nbr.append(nbr_v); orient.append(orient_v)
-
-        def mk(q, vals, mask, sig=SIGMA_LOG):
-            return FeatureField(q, spec, PHI, vals, sig, mask, stratum)
-
-        fields_by_specimen[spec] = {
-            "nc_ratio": mk("nc_ratio", nc, "seg_v3_nuc_cyto"),
-            "nuclear_area": mk("nuclear_area", area, "seg_v3_nuc_cyto"),
-            "chromatin": mk("chromatin", chrom, "texture_v2"),
-            "neighbour_dist": mk("neighbour_dist", nbr, "seg_v3_centroids"),
-            "orient_coherence": mk("orient_coherence", orient, "orient_v1", 0.03),
-        }
-        labels[spec] = condition
-        strata[spec] = stratum
-    return fields_by_specimen, labels, strata
+    """The demo cohort. Same generator the Calibration Range uses, so the thing
+    demonstrated and the thing measured cannot drift apart."""
+    return synth.generate(synth.CohortSpec(n_specimens=N_SPECIMENS))
 
 
 # ---------------------------------------------------------------------------
@@ -325,6 +274,21 @@ def part5_gate(survivors: list) -> None:
     print("  cheapest experiment that would refute it attached.")
 
 
+def part6_range() -> None:
+    rule("8. CALIBRATION RANGE  (docs/05 §F.7, roadmap M5)")
+    print("  Plant a relationship of known strength in cohorts the kernel has never")
+    print("  seen, and measure what it does. These numbers ARE the promotion gates --")
+    print("  a discovery pipeline whose false-discovery rate has never been measured")
+    print("  should not be allowed to emit a finding.\n")
+    conditions = run_range(n_trials=6, n_specimens=25,
+                           couplings=(1.0, 0.75, 0.5, 0.0), n_perm=30)
+    print(report(conditions))
+    print("\n  Reduced settings so the demo stays fast. The committed operating")
+    print("  characteristics are in docs/10 §N.5, from `cli.py range --trials 20`:")
+    print("  100% sensitivity down to 0.75 coupling, 50% at 0.50, 5% false discovery")
+    print("  on pure nulls, 100% artefact kill. All of it an upper bound on real data.")
+
+
 def main() -> None:
     print(__doc__)
     log = EvidenceLog()
@@ -334,6 +298,7 @@ def main() -> None:
     survivors = part3_invariants(fields_by_specimen)
     part4_confound(fields_by_specimen, labels, strata)
     part5_gate(survivors)
+    part6_range()
     print(f"\n{'=' * 78}\nevidence log: {len(log)} entries, chain valid: {log.verify()}\n")
 
 

@@ -36,7 +36,8 @@ Four honesty levels are used throughout:
 | Hierarchical Bayesian field models | **BUILD** | Stan / NumPyro / PyMC. |
 | Held-out-fitted predictor ensembles (leave-lab/scanner/time-block-out) | **BUILD** | Compute cost only. |
 | e-values, test martingales, e-BH | **BUILD** | Mature; implementations exist. |
-| Calibration Range (synthetic phenomenon injection, measured FDR) | **BUILD** | Deserves a dedicated engineer. Nothing else in the plan is trustworthy without it. |
+| Calibration Range (synthetic phenomenon injection, measured FDR) | **BUILD** — built, see `prototype/opos/calibration.py` | Deserves a dedicated engineer. Nothing else in the plan is trustworthy without it, and in this repository it found two real defects in the tribunal on its first run. |
+| Persistent evidence log, ingestion with an enforced metadata gate | **BUILD** — built, see `prototype/opos/{store,ingest}.py` | SQLite and a CSV contract. The hard part is the lab process the gate demands, not the gate. |
 | LLM proposal engine behind a deterministic gauntlet | **BUILD** | The gauntlet is the work; the LLM is a component. |
 | Literature → claims + effect sizes extraction | **BUILD** at ~70–85% with human review | Good enough to be useful, not good enough to be trusted unreviewed. |
 | Literature → *validity envelope* extraction | **RESEARCH** | See M1. |

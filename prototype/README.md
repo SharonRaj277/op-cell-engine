@@ -1,9 +1,14 @@
 # OP-OS Kernel v0 — reference implementation
 
-Dependency-free Python 3.11+. No numpy, no LLM, no vector store, no agent framework.
+Dependency-free Python 3.11+. No numpy, no GPU, no LLM, no vector store, no agent framework.
 
 ```bash
-python3 prototype/demo.py
+python3 prototype/demo.py                       # end-to-end walkthrough
+
+python3 prototype/cli.py synth  --out data      # write a cohort in the ingest format
+python3 prototype/cli.py ingest --dir data      # per-object CSV -> canonical fields (SQLite)
+python3 prototype/cli.py hunt                   # invariant hunter + confound tribunal
+python3 prototype/cli.py range  --trials 20     # measure the pipeline against planted truth
 ```
 
 ## What is here
@@ -15,7 +20,12 @@ python3 prototype/demo.py
 | `opos/ledger.py` | Double-entry discrepancy ledger, balance invariant, e-processes, structure scoring | `docs/05 §F.2–F.3` |
 | `opos/fields.py` | Feature fields over the canonical frame | `docs/02 §2.4` |
 | `opos/invariant.py` | Invariant hunter over dimensionless-monomial candidates | `docs/05 §G.3 Mode 2` |
-| `opos/tribunal.py` | Confound tribunal: shared-measurement, noise-floor, permutation, stratification channels | `docs/05 §F.4` |
+| `opos/tribunal.py` | Confound tribunal: shared-measurement, noise-floor, materiality, mismatched-pairing, permutation and stratification channels | `docs/05 §F.4` |
+| `opos/calibration.py` | The Calibration Range: plants known phenomena and artefacts, measures sensitivity and false-discovery rate | `docs/05 §F.7`, `docs/10 M5` |
+| `opos/synthetic.py` | Parameterised cohort generator, shared by the demo and the Range | — |
+| `opos/store.py` | SQLite evidence log (hash-chained), specimens, fields, sealed predictions, postings | `docs/07 §7.1` |
+| `opos/ingest.py` | Per-object CSV → canonical fields, with the metadata gate | `docs/10 §N.2` |
+| `cli.py` | `synth` · `ingest` · `hunt` · `range` · `demo` | `docs/11 §11.5` |
 
 ## What the demo plants, and what the kernel does with it
 
@@ -38,6 +48,39 @@ easy to get wrong in a way that silently disables the defence:
 - **The noise-floor channel checks variance from below.** A candidate whose observed φ-variance
   falls *below* the independent-error floor cannot be real — the measurement errors must be
   correlated. This catches manufactured invariants even when the mask provenance is unavailable.
+
+## The metadata gate is enforced, not advised
+
+A specimen whose instrument state is incomplete is refused at ingest:
+
+```
+REFUSED AT THE METADATA GATE
+  5 specimen(s) refused for incomplete instrument state: S000 (missing stain_lot) ...
+  Capture it or pass --lax, and note that nothing ingested under --lax can clear a
+  promotion gate.
+```
+
+Without scanner, stain lot, fixation and pipeline version the confound tribunal has no channels
+to stratify on, so nothing derived from that specimen could ever be promoted. Enforcing it at
+the point data is accepted is the only place it can be enforced — by the time anyone notices it
+is missing, the slides have been cut.
+
+## The Range found a real defect in this code
+
+Building the Calibration Range before trusting the hunter was not a formality. Measured on
+pure-null cohorts — nothing planted, so every survivor is a false discovery — the first version
+of the pipeline reported a **100% false-discovery rate**. Two fixes, both now in the tribunal:
+
+1. **The φ-permutation null was the wrong null.** It tests whether a feature has φ-structure,
+   which every biological field does, rather than whether the *within-specimen pairing* is what
+   makes the combination flat. The `mismatched_pairing` channel breaks the pairing instead —
+   feature A from one specimen, feature B from another. Null FDR fell to 33%.
+2. **Multiplicity was unaccounted.** Four candidates were tried at a 5% cutoff each. Dividing the
+   alpha budget across the candidates examined, plus a materiality floor calibrated on the Range,
+   took it to 0%.
+
+That sequence is the argument for the whole subsystem: reasoning did not find either defect, and
+measurement found both in the first run.
 
 ## What is deliberately absent
 

@@ -73,7 +73,7 @@ def noise_floor_channel(res: InvariantResult) -> ChannelResult:
 
 def permutation_channel(cand: Candidate, fields_by_specimen: dict,
                         observed: float, n_perm: int = 200,
-                        seed: int = 7) -> ChannelResult:
+                        seed: int = 7, alpha: float = 0.05) -> ChannelResult:
     """Shuffle phi within one component. A real functional relationship dies; an
     artefact of scale or of shared level survives."""
     rng = random.Random(seed)
@@ -96,12 +96,57 @@ def permutation_channel(cand: Candidate, fields_by_specimen: dict,
             reds.append(comp / max(statistics.pvariance(g), 1e-12))
         null.append(statistics.median(reds))
     beat = sum(1 for v in null if v >= observed)
-    if beat > 0.05 * n_perm:
+    if beat > alpha * n_perm:
         return ChannelResult("permutation_null", "KILLED",
                              f"{beat}/{n_perm} permutations reach the observed reduction")
     return ChannelResult("permutation_null", "SURVIVES",
                          f"{beat}/{n_perm} permutations reach it (observed "
                          f"reduction {observed:.1f}x)")
+
+
+def mismatched_pairing_channel(cand: Candidate, fields_by_specimen: dict,
+                              observed: float, n_perm: int = 100,
+                              seed: int = 11, alpha: float = 0.05) -> ChannelResult:
+    """The correct null for an invariance claim, and the one that is easy to get wrong.
+
+    Permuting phi asks 'does this feature have phi-structure at all', which every
+    biological field answers yes to -- so a phi-permutation null passes candidates
+    built from any two smooth decaying features. The claim being tested is narrower:
+    that the WITHIN-SPECIMEN pairing is what makes the combination flat. So break the
+    pairing instead -- take component A from one specimen and component B from another
+    -- and ask whether the variance still collapses. If it does, the invariance is a
+    property of the feature family, not of the specimen.
+    """
+    rng = random.Random(seed)
+    specs = [s for s, f in fields_by_specimen.items()
+             if all(q in f for q in cand.components)]
+    if len(specs) < 4:
+        return ChannelResult("mismatched_pairing", "UNDECIDABLE", "too few specimens")
+    head, tail = cand.components[0], cand.components[1:]
+
+    null = []
+    for _ in range(n_perm):
+        reds = []
+        for s in specs:
+            mixed = dict(fields_by_specimen[s])
+            for q in tail:
+                donor = rng.choice([x for x in specs if x != s])
+                mixed[q] = fields_by_specimen[donor][q]
+            g = cand.evaluate(mixed)
+            comp = statistics.fmean([abs(w) * mixed[q].phi_variance_log()
+                                     for q, w in cand.weights])
+            reds.append(comp / max(statistics.pvariance(g), 1e-12))
+        null.append(statistics.median(reds))
+    beat = sum(1 for v in null if v >= observed)
+    med = statistics.median(null)
+    if beat > alpha * n_perm:
+        return ChannelResult("mismatched_pairing", "KILLED",
+                             f"{beat}/{n_perm} mismatched cohorts reach the observed "
+                             f"{observed:.1f}x (median {med:.1f}x); the pairing is not "
+                             "what makes it flat")
+    return ChannelResult("mismatched_pairing", "SURVIVES",
+                         f"observed {observed:.1f}x vs {med:.1f}x with the "
+                         f"within-specimen pairing broken ({beat}/{n_perm})")
 
 
 def stratification_channel(channel: str, res: InvariantResult,
@@ -127,13 +172,35 @@ def stratification_channel(channel: str, res: InvariantResult,
     return ChannelResult(f"stratify:{channel}", "SURVIVES", detail)
 
 
+def materiality_channel(res: InvariantResult, min_reduction: float) -> ChannelResult:
+    """A statistically detectable invariant that is not a material one is not a finding.
+    The floor is set from the Calibration Range, not chosen by taste."""
+    if res.median_variance_reduction < min_reduction:
+        return ChannelResult("materiality", "KILLED",
+                             f"{res.median_variance_reduction:.1f}x reduction is below "
+                             f"the calibrated floor of {min_reduction:.0f}x")
+    return ChannelResult("materiality", "SURVIVES",
+                         f"{res.median_variance_reduction:.1f}x reduction, floor "
+                         f"{min_reduction:.0f}x")
+
+
 def run_invariant_tribunal(res: InvariantResult, fields_by_specimen: dict,
-                           channels: list[str]) -> TribunalRecord:
+                           channels: list[str], n_perm: int = 200,
+                           alpha: float = 0.05,
+                           min_reduction: float = 12.0) -> TribunalRecord:
+    """`alpha` is the per-candidate budget for the two null channels. When several
+    candidates from one search are put on trial, the caller divides it among them --
+    the alpha budget of docs/05 §H.3, made concrete at the point it is spent."""
     rec = TribunalRecord()
     rec.add(shared_measurement_channel(res.candidate, fields_by_specimen))
     rec.add(noise_floor_channel(res))
+    rec.add(materiality_channel(res, min_reduction))
+    rec.add(mismatched_pairing_channel(res.candidate, fields_by_specimen,
+                                       res.median_variance_reduction,
+                                       n_perm=n_perm, alpha=alpha))
     rec.add(permutation_channel(res.candidate, fields_by_specimen,
-                                res.median_variance_reduction))
+                                res.median_variance_reduction,
+                                n_perm=n_perm, alpha=alpha))
     for ch in channels:
         rec.add(stratification_channel(ch, res, fields_by_specimen))
     return rec

@@ -80,6 +80,32 @@ science, and it is deliberately less than the architecture in `01`.
 M5 before M7 is not negotiable. A discovery pipeline whose false-discovery rate has never been
 measured should not be allowed to emit a finding.
 
+### Measured M5 operating characteristics (synthetic)
+
+From `python3 prototype/cli.py range --trials 20`, 30 specimens per cohort. `coupling` is the
+strength of the planted relationship: 1.0 means the two features share a differentiation rate
+exactly, 0.0 means nothing was planted at all.
+
+| Condition | Trials | Sensitivity | False discovery | Artefact kill |
+| --- | --- | --- | --- | --- |
+| coupling 1.00 | 20 | 100% | 0% | 100% |
+| coupling 0.90 | 20 | 100% | 0% | 100% |
+| coupling 0.75 | 20 | 100% | 5% | 100% |
+| coupling 0.50 | 20 | 50% | 15% | 100% |
+| pure null (nothing planted) | 20 | — | 5% | — |
+
+Read honestly, this says three things. The pipeline is reliable down to roughly 0.75 coupling and
+loses half its sensitivity by 0.50 — that is the detection limit, and it should be quoted whenever
+the system reports finding nothing. The planted artefact was destroyed in every single trial,
+which is the tribunal working as designed. And the pure-null false-discovery rate is 5%, not 0% —
+one cohort in twenty yields a surviving candidate with nothing planted in it, which is the number
+that belongs in a dossier rather than a derived guarantee (`08 A12`).
+
+These figures are an **upper bound on real performance**, and it is important not to quote them as
+if they were not. The synthetic cohorts have a correctly-specified noise model, exactly the nuisance
+channels the tribunal knows about, and no unmeasured confounding. Real tissue supplies all three of
+those problems, so the first task on real data is to re-measure this table, not to assume it.
+
 ### N.6 What v0 will most likely produce first
 
 In order of likelihood, and all of them are worth having:

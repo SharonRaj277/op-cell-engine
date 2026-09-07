@@ -68,6 +68,9 @@ all applicable channels:
 | Segmentation bias | **Re-measure with an independent segmenter and with human annotation** |
 | Frame-fit bias | Perturb the φ-fitting model; does the relationship move with the frame? |
 | Shared denominators | Are the two features derived from the same mask, manufacturing correlation? Test with independently derived measurements |
+| Noise floor | Is the combination's variance *below* what independent measurement errors permit? If so the errors must be correlated, whatever the mask provenance says |
+| Mismatched pairing | For an invariance claim: recompute with the within-specimen pairing broken — feature A from one specimen, feature B from another. If the variance still collapses, the invariance is a property of the feature family, not of the specimen |
+| Materiality | Is the effect above a floor calibrated on the Range? A statistically detectable invariant that is not a material one is not a finding |
 | Selection | How did these specimens enter the cohort? Referral bias, block availability, case difficulty |
 | Label noise | Does the effect survive when labels are modelled as noisy rather than true? |
 | Annotator drift | Time-ordered rater effects |
@@ -194,7 +197,9 @@ cross-validate by specimen (leave-cohort-out), then by instrument (leave-scanner
 → tribunal (shared-denominator channel is mandatory here) → Investigation
 ```
 
-Two traps this algorithm must dodge, both handled explicitly:
+Three traps this algorithm must dodge, all handled explicitly — and the third was found
+by the Calibration Range rather than by reasoning, which is the argument for building the
+Range before trusting any of this:
 
 - **Trivial invariants.** `A/A = 1`. Pruned by requiring `g` to depend non-degenerately on ≥2
   independently-measured quantities and by the MDL penalty.
@@ -202,6 +207,13 @@ Two traps this algorithm must dodge, both handled explicitly:
   error creates a spurious low-variance ratio. This is *the* dominant false positive in
   computational pathology invariant hunting, and it is why the shared-denominator tribunal
   channel and the independent-segmenter swap are non-negotiable.
+- **The wrong null.** Permuting φ within a feature tests whether the feature has φ-structure at
+  all — which every biological field answers yes to — so a φ-permutation null passes candidates
+  built from any two smooth decaying features. The claim under test is narrower: that the
+  *within-specimen pairing* is what makes the combination flat. The correct null therefore
+  breaks the pairing, not the ordering. Measured on pure-null cohorts, the φ-permutation null
+  produced a 100% false-discovery rate and the mismatched-pairing null brought it to 33%;
+  spending the alpha budget across the candidates examined took it to 0%.
 
 Your hypothetical — "Feature A changes with φ, Feature B changes with φ, their relationship is
 unexpectedly stable, existing knowledge does not explain it" — is exactly `score(g)` being high

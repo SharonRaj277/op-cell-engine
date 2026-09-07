@@ -32,19 +32,25 @@ The short version of the answer:
 | [`docs/08-ADVERSARIAL-REVIEW.md`](docs/08-ADVERSARIAL-REVIEW.md) | The attack on the above, and the v2 redesign that survives it |
 | [`docs/09-FEASIBILITY-2026.md`](docs/09-FEASIBILITY-2026.md) | (L) What is real engineering today (M) What is unsolved research (and what is vapour) |
 | [`docs/10-PROTOTYPE-AND-ROADMAP.md`](docs/10-PROTOTYPE-AND-ROADMAP.md) | (N) Minimal prototype (O) Staged path to autonomous discovery, with numeric promotion gates |
+| [`docs/11-COMPUTE-AND-GPU.md`](docs/11-COMPUTE-AND-GPU.md) | Where a GPU belongs (the vision stack) and where it does not (all of this); sizing, hosting, and the file contract between the two halves |
 
 ## Runnable kernel
 
-[`prototype/`](prototype/) contains a dependency-free reference implementation of the four
-mechanisms the argument actually rests on — the epistemic type lattice, the hash-chained
-provenance DAG, the double-entry discrepancy ledger with anytime-valid evidence, and the
-invariant hunter with its confound tribunal — plus a synthetic oral-epithelium demo in which
-a hidden φ-relationship is planted alongside a scanner-driven artefact. The kernel finds the
-first and rejects the second.
+[`prototype/`](prototype/) is a dependency-free reference implementation of the mechanisms the
+argument rests on: the epistemic type lattice, the hash-chained provenance DAG and SQLite
+evidence log, the double-entry discrepancy ledger with anytime-valid evidence, the invariant
+hunter, the confound tribunal, and the Calibration Range that measures all of it.
 
 ```bash
-python3 prototype/demo.py
+python3 prototype/demo.py                      # end-to-end walkthrough on planted ground truth
+
+python3 prototype/cli.py synth  --out data     # a cohort in the real ingest format
+python3 prototype/cli.py ingest --dir data     # per-object CSV -> canonical fields
+python3 prototype/cli.py hunt                  # invariant hunter + tribunal
+python3 prototype/cli.py range  --trials 20    # measured sensitivity and false-discovery rate
 ```
 
-Everything in `prototype/` is deliberately buildable-today code. Everything the docs mark
-**RESEARCH** is not in it, on purpose.
+No GPU, no LLM, no vector store, no agent framework — see
+[`docs/11-COMPUTE-AND-GPU.md`](docs/11-COMPUTE-AND-GPU.md) for why the knowledge layer needs
+none of them and where the compute actually belongs. Everything here is deliberately
+buildable-today code; everything the docs mark **RESEARCH** is absent on purpose.
